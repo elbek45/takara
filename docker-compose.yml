@@ -1,71 +1,100 @@
-# Takara DeFi Platform - Docker Compose Configuration
-# Поднимает PostgreSQL для разработки и production
-
 version: '3.8'
 
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: takara-postgres
-    restart: unless-stopped
+    restart: always
     environment:
-      POSTGRES_USER: takara
-      POSTGRES_PASSWORD: takara_password
-      POSTGRES_DB: takara_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: takara_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-takara_secure_password_2024}
+      POSTGRES_DB: takara_production
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
     networks:
       - takara-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U takara"]
+      test: ["CMD-SHELL", "pg_isready -U takara_user"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # PgAdmin (опционально, для удобства работы с БД)
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: takara-pgadmin
-    restart: unless-stopped
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: takara-backend
+    restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@takara.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-    ports:
-      - "5050:80"
-    networks:
-      - takara-network
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://takara_user:${DB_PASSWORD:-takara_secure_password_2024}@postgres:5432/takara_production?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change_this_to_random_secret_in_production}
+      SOLANA_NETWORK: ${SOLANA_NETWORK:-devnet}
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.devnet.solana.com}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@takara.io}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
     depends_on:
-      - postgres
-
-  # Redis (для кэширования и очередей)
-  redis:
-    image: redis:7-alpine
-    container_name: takara-redis
-    restart: unless-stopped
+      postgres:
+        condition: service_healthy
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+      - "5000:5000"
     networks:
       - takara-network
-    command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
+  # Frontend (Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost/api}
+        VITE_SOLANA_NETWORK: ${SOLANA_NETWORK:-devnet}
+        VITE_SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.devnet.solana.com}
+        VITE_APP_NAME: "Takara DeFi Platform"
+    container_name: takara-frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - takara-network
+    volumes:
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+
+  # Admin Panel (Optional)
+  admin:
+    build:
+      context: ./admin-panel
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost/api}
+    container_name: takara-admin
+    restart: always
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+    networks:
+      - takara-network
 
 networks:
   takara-network:
     driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
