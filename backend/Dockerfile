@@ -21,8 +21,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install wget for healthcheck
-RUN apk add --no-cache wget
+# Install wget for healthcheck and openssl for Prisma
+RUN apk add --no-cache wget openssl openssl-dev
 
 # Copy from builder
 COPY --from=builder /app/node_modules ./node_modules
