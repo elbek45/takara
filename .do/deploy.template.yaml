@@ -1,0 +1,110 @@
+# DigitalOcean App Platform - Simple Deployment
+# This deploys Backend + Frontend only (without Admin Panel)
+# Copy this to app.yaml and customize before deployment
+
+name: takara-defi
+region: nyc  # Choose: nyc, sfo, ams, sgp, fra, blr
+
+# Backend API Service
+services:
+  - name: backend
+    source_dir: backend
+    github:
+      repo: elbek45/takara
+      branch: main
+      deploy_on_push: true
+
+    build_command: npm install && npx prisma generate && npm run build
+    run_command: npm start
+
+    # Basic plan: $5/month
+    instance_count: 1
+    instance_size_slug: basic-xxs
+
+    http_port: 5000
+
+    routes:
+      - path: /api
+
+    # IMPORTANT: Update these values before deployment
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5000"
+      # Database URL will be auto-set when you add database
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      # Generate strong secret: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+      - key: JWT_SECRET
+        value: CHANGE_THIS_TO_RANDOM_64_CHAR_SECRET
+        type: SECRET
+      - key: SOLANA_NETWORK
+        value: devnet  # Change to 'mainnet-beta' for production
+      - key: SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      # For mainnet:
+      # - key: SOLANA_NETWORK
+      #   value: mainnet-beta
+      # - key: SOLANA_RPC_URL
+      #   value: https://api.mainnet-beta.solana.com
+      # - key: TAKARA_TOKEN_MINT
+      #   value: YOUR_TOKEN_ADDRESS_HERE
+      # - key: USDT_TOKEN_MINT
+      #   value: Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+      - key: CORS_ORIGIN
+        value: "*"  # Will be auto-updated to frontend URL
+      - key: ADMIN_EMAIL
+        value: admin@takara.io
+      - key: ADMIN_PASSWORD
+        value: CHANGE_THIS_TO_STRONG_PASSWORD
+        type: SECRET
+
+    health_check:
+      http_path: /api/health
+      initial_delay_seconds: 30
+      period_seconds: 10
+
+# Frontend Static Site (FREE)
+static_sites:
+  - name: frontend
+    source_dir: frontend
+    github:
+      repo: elbek45/takara
+      branch: main
+      deploy_on_push: true
+
+    build_command: npm install && npm run build
+    output_dir: dist
+
+    routes:
+      - path: /
+
+    envs:
+      # This will auto-resolve to backend URL
+      - key: VITE_API_URL
+        value: ${backend.PUBLIC_URL}/api
+      - key: VITE_SOLANA_NETWORK
+        value: devnet
+      - key: VITE_SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: VITE_APP_NAME
+        value: Takara DeFi Platform
+      - key: VITE_APP_URL
+        value: ${_self.PUBLIC_URL}
+      - key: VITE_ENABLE_ADMIN_PANEL
+        value: "true"
+      - key: VITE_ENABLE_WITHDRAWALS
+        value: "true"
+      - key: VITE_MAINTENANCE_MODE
+        value: "false"
+
+# PostgreSQL Database
+# Note: Create this separately in DigitalOcean dashboard first
+# Then add it to the app as a trusted source
+# databases:
+#   - name: takara-db
+#     engine: PG
+#     version: "16"
+#     production: true

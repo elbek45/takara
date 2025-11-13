@@ -1,0 +1,115 @@
+name: takara-defi
+region: nyc
+
+# PostgreSQL Database
+databases:
+  - name: takara-db
+    engine: PG
+    version: "16"
+    production: true
+    cluster_name: takara-production
+    db_name: takara
+    db_user: takara_user
+
+# Backend API Service
+services:
+  - name: backend
+    source_dir: backend
+    github:
+      repo: elbek45/takara
+      branch: main
+      deploy_on_push: true
+
+    build_command: npm install && npx prisma generate && npm run build
+    run_command: npm start
+
+    instance_count: 1
+    instance_size_slug: basic-xxs
+
+    http_port: 5000
+
+    routes:
+      - path: /api
+
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5000"
+      - key: DATABASE_URL
+        value: ${takara-db.DATABASE_URL}
+      - key: JWT_SECRET
+        value: CHANGE_THIS_TO_RANDOM_SECRET
+        type: SECRET
+      - key: SOLANA_NETWORK
+        value: devnet
+      - key: SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: CORS_ORIGIN
+        value: ${frontend.PUBLIC_URL}
+      - key: ADMIN_EMAIL
+        value: admin@takara.io
+      - key: ADMIN_PASSWORD
+        value: CHANGE_THIS_PASSWORD
+        type: SECRET
+
+    health_check:
+      http_path: /api/health
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+
+# Frontend Static Site
+static_sites:
+  - name: frontend
+    source_dir: frontend
+    github:
+      repo: elbek45/takara
+      branch: main
+      deploy_on_push: true
+
+    build_command: npm install && npm run build
+    output_dir: dist
+
+    routes:
+      - path: /
+
+    envs:
+      - key: VITE_API_URL
+        value: ${backend.PUBLIC_URL}/api
+      - key: VITE_SOLANA_NETWORK
+        value: devnet
+      - key: VITE_SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: VITE_APP_NAME
+        value: Takara DeFi Platform
+      - key: VITE_APP_URL
+        value: ${_self.PUBLIC_URL}
+      - key: VITE_ENABLE_ADMIN_PANEL
+        value: "true"
+      - key: VITE_ENABLE_WITHDRAWALS
+        value: "true"
+      - key: VITE_MAINTENANCE_MODE
+        value: "false"
+
+# Admin Panel (Optional)
+  - name: admin-panel
+    source_dir: admin-panel
+    github:
+      repo: elbek45/takara
+      branch: main
+      deploy_on_push: true
+
+    build_command: npm install && npm run build
+    output_dir: dist
+
+    routes:
+      - path: /admin
+
+    envs:
+      - key: VITE_API_URL
+        value: ${backend.PUBLIC_URL}/api
+      - key: VITE_APP_NAME
+        value: Takara DeFi Admin Panel
