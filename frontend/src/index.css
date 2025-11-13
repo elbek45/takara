@@ -1,0 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-takara-dark text-white font-japanese;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-takara-gold hover:bg-takara-gold-light text-takara-dark font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105;
+  }
+
+  .btn-secondary {
+    @apply bg-takara-green hover:bg-opacity-80 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300;
+  }
+
+  .card {
+    @apply bg-takara-green bg-opacity-40 backdrop-blur-sm rounded-xl p-6 border border-takara-gold border-opacity-20 hover:border-opacity-40 transition-all duration-300;
+  }
+
+  .pool-card {
+    @apply card hover:shadow-xl hover:shadow-takara-gold/20 transform hover:-translate-y-1;
+  }
+
+  .input-field {
+    @apply w-full bg-takara-dark bg-opacity-50 border border-takara-gold border-opacity-30 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-takara-gold focus:ring-2 focus:ring-takara-gold focus:ring-opacity-20 transition-all;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-takara-gold to-takara-gold-light bg-clip-text text-transparent;
+  }
+
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold mb-8 gradient-text;
+  }
+
+  .japanese-symbol {
+    @apply text-takara-gold text-opacity-10 text-9xl font-bold absolute;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0A2F23;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D4AF37;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FFD700;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    to right,
+    #0A2F23 0%,
+    #1A4D3A 20%,
+    #D4AF37 40%,
+    #1A4D3A 60%,
+    #0A2F23 100%
+  );
+  background-size: 2000px 100%;
+  animation: shimmer 3s linear infinite;
+}

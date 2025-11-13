@@ -1,0 +1,309 @@
+// Takara DeFi Platform - Prisma Schema
+// This is the database schema using Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================================
+// ENUMS
+// ========================================
+
+enum PoolStatus {
+  pending
+  active
+  completed
+  cancelled
+}
+
+enum InvestmentStatus {
+  pending
+  active
+  completed
+  withdrawn
+}
+
+enum WithdrawalStatus {
+  pending
+  processing
+  completed
+  rejected
+}
+
+enum TransactionType {
+  deposit
+  withdrawal
+  reward_usdt
+  reward_takara
+  nft_mint
+}
+
+enum UserRole {
+  user
+  moderator
+  admin
+}
+
+enum AdminRole {
+  superadmin
+  admin
+  moderator
+}
+
+// ========================================
+// MODELS
+// ========================================
+
+/// Администраторы платформы (для админ панели)
+model Admin {
+  id              String    @id @default(uuid())
+  username        String    @unique @db.VarChar(50)
+  email           String?   @unique @db.VarChar(100)
+  passwordHash    String    @map("password_hash") @db.VarChar(255)
+  role            AdminRole @default(admin)
+  isActive        Boolean   @default(true) @map("is_active")
+
+  // Security
+  failedLoginAttempts Int     @default(0) @map("failed_login_attempts")
+  lockedUntil     DateTime? @map("locked_until")
+  lastLoginAt     DateTime? @map("last_login_at")
+  lastLoginIp     String?   @map("last_login_ip") @db.VarChar(45)
+
+  // Timestamps
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("admins")
+}
+
+/// Пользователи платформы
+model User {
+  id                String   @id @default(uuid())
+  walletAddress     String   @unique @map("wallet_address") @db.VarChar(44)
+  role              UserRole @default(user)
+
+  // Статистика пользователя
+  totalInvested     Decimal  @default(0) @map("total_invested") @db.Decimal(18, 6)
+  totalTakaraEarned Decimal  @default(0) @map("total_takara_earned") @db.Decimal(18, 6)
+  totalUsdtEarned   Decimal  @default(0) @map("total_usdt_earned") @db.Decimal(18, 6)
+
+  // Реферальная система
+  referralCode      String?  @unique @map("referral_code") @db.VarChar(20)
+  referredBy        String?  @map("referred_by")
+  referrer          User?    @relation("Referrals", fields: [referredBy], references: [id])
+  referrals         User[]   @relation("Referrals")
+
+  // Timestamps
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  lastLoginAt       DateTime? @map("last_login_at")
+
+  // Relations
+  investments       Investment[]
+  withdrawalRequests WithdrawalRequest[]
+  transactions      Transaction[]
+  processedWithdrawals WithdrawalRequest[] @relation("ProcessedBy")
+  platformSettingsUpdated PlatformSetting[]
+
+  @@map("users")
+}
+
+/// Инвестиционные пулы
+model Pool {
+  id               String     @id @default(uuid())
+  name             String     @db.VarChar(100)
+  durationMonths   Int        @map("duration_months")
+
+  // Доходность
+  takaraMultiplier Decimal    @map("takara_multiplier") @db.Decimal(4, 2) // 1.0, 1.5, 2.0
+  usdtApy          Decimal    @default(7.00) @map("usdt_apy") @db.Decimal(5, 2) // 7% APY
+
+  // Лимиты инвестирования
+  minInvestment    Decimal    @default(100) @map("min_investment") @db.Decimal(18, 6)
+  maxInvestment    Decimal?   @map("max_investment") @db.Decimal(18, 6)
+
+  // Целевая сумма и текущий прогресс
+  targetAmount     Decimal    @default(100000) @map("target_amount") @db.Decimal(18, 6) // $100k minimum
+  currentAmount    Decimal    @default(0) @map("current_amount") @db.Decimal(18, 6)
+
+  // Статус и активность
+  status           PoolStatus @default(pending)
+  startDate        DateTime?  @map("start_date")
+  endDate          DateTime?  @map("end_date")
+  isActive         Boolean    @default(true) @map("is_active")
+
+  // Timestamps
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  investments      Investment[]
+
+  @@map("pools")
+}
+
+/// Инвестиции пользователей
+model Investment {
+  id             String           @id @default(uuid())
+  userId         String           @map("user_id")
+  poolId         String           @map("pool_id")
+
+  // Сумма инвестиции
+  amount         Decimal          @db.Decimal(18, 6)
+
+  // Награды
+  takaraReward   Decimal          @map("takara_reward") @db.Decimal(18, 6) // calculated based on pool multiplier
+  usdtReward     Decimal          @map("usdt_reward") @db.Decimal(18, 6) // calculated based on APY
+  takaraClaimed  Decimal          @default(0) @map("takara_claimed") @db.Decimal(18, 6)
+  usdtClaimed    Decimal          @default(0) @map("usdt_claimed") @db.Decimal(18, 6)
+
+  // NFT информация
+  nftTokenId     String?          @unique @map("nft_token_id") @db.VarChar(100) // Solana NFT mint address
+  nftMetadataUri String?          @map("nft_metadata_uri") @db.Text
+
+  // Статус
+  status         InvestmentStatus @default(pending)
+  startDate      DateTime?        @map("start_date")
+  endDate        DateTime?        @map("end_date")
+
+  // Timestamps
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pool           Pool             @relation(fields: [poolId], references: [id], onDelete: Restrict)
+  nftMiner       NftMiner?
+  takaraEarnings TakaraEarning[]
+  usdtEarnings   UsdtEarning[]
+  transactions   Transaction[]
+  withdrawalRequests WithdrawalRequest[]
+
+  @@map("investments")
+}
+
+/// NFT Майнеры (Wexel NFT)
+model NftMiner {
+  id             String   @id @default(uuid())
+  investmentId   String   @unique @map("investment_id")
+  tokenAddress   String   @unique @map("token_address") @db.VarChar(44) // Solana NFT mint address
+  ownerWallet    String   @map("owner_wallet") @db.VarChar(44) // Current owner (can be transferred)
+  metadataUri    String   @map("metadata_uri") @db.Text
+  imageUri       String?  @map("image_uri") @db.Text
+  name           String   @db.VarChar(100)
+  description    String?  @db.Text
+  attributes     Json?    // NFT attributes as JSON
+  createdAt      DateTime @default(now()) @map("created_at")
+  transferredAt  DateTime? @map("transferred_at")
+
+  // Relations
+  investment     Investment @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+
+  @@map("nft_miners")
+}
+
+/// Запросы на вывод средств
+model WithdrawalRequest {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  investmentId      String?          @map("investment_id")
+  amount            Decimal          @db.Decimal(18, 6)
+  currency          String           @db.VarChar(10) // 'USDT' or 'TAKARA'
+  destinationWallet String           @map("destination_wallet") @db.VarChar(44)
+  status            WithdrawalStatus @default(pending)
+
+  // Обработка
+  processedBy       String?          @map("processed_by")
+  processedAt       DateTime?        @map("processed_at")
+  rejectionReason   String?          @map("rejection_reason") @db.Text
+
+  // Blockchain транзакция
+  transactionHash   String?          @map("transaction_hash") @db.VarChar(100) // Solana transaction signature
+
+  // Timestamps
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investment        Investment?      @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  processor         User?            @relation("ProcessedBy", fields: [processedBy], references: [id])
+
+  @@map("withdrawal_requests")
+}
+
+/// История транзакций
+model Transaction {
+  id              String          @id @default(uuid())
+  userId          String          @map("user_id")
+  investmentId    String?         @map("investment_id")
+  type            TransactionType
+  amount          Decimal         @db.Decimal(18, 6)
+  currency        String          @db.VarChar(10) // 'USDT', 'TAKARA', 'SOL'
+  fromWallet      String?         @map("from_wallet") @db.VarChar(44)
+  toWallet        String?         @map("to_wallet") @db.VarChar(44)
+  transactionHash String?         @map("transaction_hash") @db.VarChar(100) // Solana transaction signature
+  metadata        Json?           // Additional transaction data
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investment      Investment?     @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+
+  @@map("transactions")
+}
+
+/// Начисления TAKARA токенов
+model TakaraEarning {
+  id           String     @id @default(uuid())
+  investmentId String     @map("investment_id")
+  amount       Decimal    @db.Decimal(18, 6)
+  dailyRate    Decimal    @map("daily_rate") @db.Decimal(18, 10) // Daily earning rate
+  earnedDate   DateTime   @map("earned_date") @db.Date
+  isClaimed    Boolean    @default(false) @map("is_claimed")
+  claimedAt    DateTime?  @map("claimed_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  // Relations
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@map("takara_earnings")
+}
+
+/// Начисления USDT
+model UsdtEarning {
+  id           String     @id @default(uuid())
+  investmentId String     @map("investment_id")
+  amount       Decimal    @db.Decimal(18, 6)
+  dailyRate    Decimal    @map("daily_rate") @db.Decimal(18, 10) // Daily earning rate (7% APY)
+  earnedDate   DateTime   @map("earned_date") @db.Date
+  isClaimed    Boolean    @default(false) @map("is_claimed")
+  claimedAt    DateTime?  @map("claimed_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  // Relations
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@map("usdt_earnings")
+}
+
+/// Настройки платформы
+model PlatformSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.Text
+  description String?  @db.Text
+  updatedBy   String?  @map("updated_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  updater     User?    @relation(fields: [updatedBy], references: [id])
+
+  @@map("platform_settings")
+}

@@ -1,0 +1,8 @@
+# Netlify redirects file
+# https://docs.netlify.com/routing/redirects/
+
+# SPA fallback - all routes go to index.html
+/*    /index.html   200
+
+# Legacy URL redirects (if needed)
+/home    /    301

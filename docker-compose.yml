@@ -1,0 +1,71 @@
+# Takara DeFi Platform - Docker Compose Configuration
+# Поднимает PostgreSQL для разработки и production
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: takara-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: takara
+      POSTGRES_PASSWORD: takara_password
+      POSTGRES_DB: takara_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - takara-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U takara"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PgAdmin (опционально, для удобства работы с БД)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: takara-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@takara.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    networks:
+      - takara-network
+    depends_on:
+      - postgres
+
+  # Redis (для кэширования и очередей)
+  redis:
+    image: redis:7-alpine
+    container_name: takara-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - takara-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  takara-network:
+    driver: bridge
