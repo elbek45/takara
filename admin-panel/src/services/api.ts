@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { Pool, Investment, WithdrawalRequest, AuthResponse, ApiResponse, User, DashboardData } from '../types';
+import { Pool, WithdrawalRequest, AuthResponse, ApiResponse, User, DashboardData } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
