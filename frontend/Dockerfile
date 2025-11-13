@@ -13,7 +13,7 @@ ARG VITE_APP_NAME
 COPY package*.json ./
 
 # Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 make g++ linux-headers eudev-dev libusb-dev
 
 # Install dependencies
 RUN npm install
