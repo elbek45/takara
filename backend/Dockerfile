@@ -16,9 +16,6 @@ COPY . .
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Build TypeScript
-RUN npm run build
-
 # Production image
 FROM node:20-alpine
 
@@ -29,7 +26,7 @@ RUN apk add --no-cache wget
 
 # Copy from builder
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src ./src
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package*.json ./
 
@@ -37,4 +34,4 @@ COPY --from=builder /app/package*.json ./
 EXPOSE 5000
 
 # Start command
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node src/server.js"]
