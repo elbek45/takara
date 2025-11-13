@@ -13,7 +13,7 @@ ARG VITE_APP_NAME
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
